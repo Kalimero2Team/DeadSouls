@@ -890,7 +890,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         final int soulId = soulDatabase.addSoul(owner, world.getUID(),
                 soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp).id;
         refreshNearbySoulCache = true;
-
+        
 
         // Show coordinates if the player has poor taste
         if (player.hasPermission("com.darkyen.minecraft.deadsouls.coordinates")) {
@@ -905,7 +905,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         if (owner != null && soulFreeAfterMs > 1000
                 && soulFreeingEnabled && textFreeMySoul != null && !textFreeMySoul.isEmpty()
                 && (player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free")
-                || player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"))) {
+                    || player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"))) {
             final TextComponent star = new TextComponent("✦");
             star.setColor(ChatColor.YELLOW);
             final TextComponent freeMySoul = new TextComponent(" "+textFreeMySoul+" ");

@@ -4,4 +4,6 @@ pluginManagement {
   }
 }
 
-rootProject.name = "plugin-template"
+rootProject.name = "deadsouls"
+
+include("api")
