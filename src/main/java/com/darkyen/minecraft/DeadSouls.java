@@ -104,11 +104,11 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
     private String soundSoulDropped = DEFAULT_SOUND_SOUL_DROPPED;
 
     @NotNull
-    private static final String DEFAULT_TEXT_FREE_MY_SOUL = "Free my soul";
+    private static final String DEFAULT_TEXT_FREE_MY_SOUL = "Meine Seele befreien";
     @Nullable
     private String textFreeMySoul = DEFAULT_TEXT_FREE_MY_SOUL;
     @NotNull
-    private static final String DEFAULT_TEXT_FREE_MY_SOUL_TOOLTIP = "Allows other players to collect the soul immediately";
+    private static final String DEFAULT_TEXT_FREE_MY_SOUL_TOOLTIP = "Erlaubt anderen Spielern, diese Seele aufzusammeln";
     @Nullable
     private String textFreeMySoulTooltip = DEFAULT_TEXT_FREE_MY_SOUL_TOOLTIP;
 
@@ -794,17 +794,23 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onPlayerDeath(PlayerDeathEvent event) {
         final Player player = event.getEntity();
+
+        System.out.println("player death");
+
         if (!player.hasPermission("com.darkyen.minecraft.deadsouls.hassoul")) {
+            System.out.println("no permission");
             return;
         }
 
         final World world = player.getWorld();
         if (!enabledWorlds.contains(world.getUID())) {
+            System.out.println("world disabled");
             return;
         }
 
         final boolean pvp = player.getKiller() != null && !player.equals(player.getKiller());
         if (pvp && pvpBehavior == PvPBehavior.DISABLED) {
+            System.out.println("pvp death");
             return;
         }
 
@@ -885,6 +891,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
                 soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp).id;
         refreshNearbySoulCache = true;
 
+
         // Show coordinates if the player has poor taste
         if (player.hasPermission("com.darkyen.minecraft.deadsouls.coordinates")) {
             final TextComponent skull = new TextComponent("☠");
@@ -898,7 +905,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         if (owner != null && soulFreeAfterMs > 1000
                 && soulFreeingEnabled && textFreeMySoul != null && !textFreeMySoul.isEmpty()
                 && (player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free")
-                    || player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"))) {
+                || player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"))) {
             final TextComponent star = new TextComponent("✦");
             star.setColor(ChatColor.YELLOW);
             final TextComponent freeMySoul = new TextComponent(" "+textFreeMySoul+" ");
