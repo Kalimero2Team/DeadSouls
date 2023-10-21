@@ -236,7 +236,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
             // Send particles
             final int soulCount = visibleSouls.size();
             int remainingSoulsToShow = 16;
-            final boolean canSeeAllSouls = playerGameMode == GameMode.SPECTATOR && player.hasPermission("com.darkyen.minecraft.deadsouls.spectatesouls");
+            final boolean canSeeAllSouls = playerGameMode == GameMode.SPECTATOR && player.hasPermission("deadsouls.spectatesouls");
             for (int i = 0; i < soulCount && remainingSoulsToShow > 0; i++) {
                 final SoulDatabase.Soul soul = visibleSouls.get(i);
                 if (!canSeeAllSouls && !soul.isAccessibleBy(player, now, soulFreeAfterMs)) {
@@ -573,8 +573,8 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
             }
 
             soulDatabase.freeSoul(sender, number, soulFreeAfterMs,
-                    sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.free"),
-                    sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"));
+                    sender.hasPermission("deadsouls.souls.free"),
+                    sender.hasPermission("deadsouls.souls.free.all"));
             return true;
         }
 
@@ -590,9 +590,9 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
                 return true;
             }
 
-            if (!sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.goto.all")) {
+            if (!sender.hasPermission("deadsouls.souls.goto.all")) {
                 if (soul.isOwnedBy(sender)) {
-                    if (!sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.goto")) {
+                    if (!sender.hasPermission("deadsouls.souls.goto")) {
                         sender.sendMessage(org.bukkit.ChatColor.RED+"You are not allowed to do that");
                         return true;
                     }
@@ -629,8 +629,8 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
             return true;
         }
 
-        boolean listOwnSouls = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls");
-        boolean listAllSouls = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.all");
+        boolean listOwnSouls = sender.hasPermission("deadsouls.souls");
+        boolean listAllSouls = sender.hasPermission("deadsouls.souls.all");
 
         if (!listOwnSouls && !listAllSouls) {
             return false;
@@ -684,10 +684,10 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
             final Location location = ((Player) sender).getLocation();
             souls.sort(Comparator.comparingLong(soulAndId -> -soulAndId.timestamp));
 
-            final boolean canFree = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.free");
-            final boolean canFreeAll = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all");
-            final boolean canGoto = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.goto");
-            final boolean canGotoAll = sender.hasPermission("com.darkyen.minecraft.deadsouls.souls.goto.all");
+            final boolean canFree = sender.hasPermission("deadsouls.souls.free");
+            final boolean canFreeAll = sender.hasPermission("deadsouls.souls.free.all");
+            final boolean canGoto = sender.hasPermission("deadsouls.souls.goto");
+            final boolean canGotoAll = sender.hasPermission("deadsouls.souls.goto.all");
 
             final int soulsPerPage = 6;
             final long now = System.currentTimeMillis();
@@ -720,13 +720,13 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
                     baseText.addExtra(ageText);
                 }
 
-                if (sender.hasPermission("com.darkyen.minecraft.deadsouls.coordinates")) {
+                if (sender.hasPermission("deadsouls.coordinates")) {
                     final TextComponent coords = new TextComponent(String.format(" %d / %d / %d", Math.round(soul.locationX), Math.round(soul.locationY), Math.round(soul.locationZ)));
                     coords.setColor(ChatColor.GRAY);
                     baseText.addExtra(coords);
                 }
 
-                if (sender.hasPermission("com.darkyen.minecraft.deadsouls.distance")) {
+                if (sender.hasPermission("deadsouls.distance")) {
                     final TextComponent dist = new TextComponent(String.format(" %.1f m", distance));
                     dist.setColor(ChatColor.AQUA);
                     baseText.addExtra(dist);
@@ -795,22 +795,17 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
     public void onPlayerDeath(PlayerDeathEvent event) {
         final Player player = event.getEntity();
 
-        System.out.println("player death");
-
-        if (!player.hasPermission("com.darkyen.minecraft.deadsouls.hassoul")) {
-            System.out.println("no permission");
+        if (!player.hasPermission("deadsouls.hassoul")) {
             return;
         }
 
         final World world = player.getWorld();
         if (!enabledWorlds.contains(world.getUID())) {
-            System.out.println("world disabled");
             return;
         }
 
         final boolean pvp = player.getKiller() != null && !player.equals(player.getKiller());
         if (pvp && pvpBehavior == PvPBehavior.DISABLED) {
-            System.out.println("pvp death");
             return;
         }
 
@@ -826,7 +821,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         boolean clearXPDrops = false;
 
         final ItemStack[] soulItems;
-        if (event.getKeepInventory() || !player.hasPermission("com.darkyen.minecraft.deadsouls.hassoul.items")) {
+        if (event.getKeepInventory() || !player.hasPermission("deadsouls.hassoul.items")) {
             // We don't modify drops for this death at all
             soulItems = NO_ITEM_STACKS;
         } else {
@@ -836,7 +831,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         }
 
         int soulXp;
-        if (event.getKeepLevel() || !player.hasPermission("com.darkyen.minecraft.deadsouls.hassoul.xp")
+        if (event.getKeepLevel() || !player.hasPermission("deadsouls.hassoul.xp")
                 // Required because getKeepLevel is not set when world's KEEP_INVENTORY is set, but it has the same effect
                 // See https://hub.spigotmc.org/jira/browse/SPIGOT-2222
                 || Boolean.TRUE.equals(world.getGameRuleValue(GameRule.KEEP_INVENTORY))) {
@@ -893,7 +888,7 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         
 
         // Show coordinates if the player has poor taste
-        if (player.hasPermission("com.darkyen.minecraft.deadsouls.coordinates")) {
+        if (player.hasPermission("deadsouls.coordinates")) {
             final TextComponent skull = new TextComponent("☠");
             skull.setColor(ChatColor.BLACK);
             final TextComponent coords = new TextComponent(String.format(" %d / %d / %d ", Math.round(soulLocation.getX()), Math.round(soulLocation.getY()), Math.round(soulLocation.getZ())));
@@ -904,14 +899,12 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         // Do not offer to free the soul if it will be free sooner than the player can click the button
         if (owner != null && soulFreeAfterMs > 1000
                 && soulFreeingEnabled && textFreeMySoul != null && !textFreeMySoul.isEmpty()
-                && (player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free")
-                    || player.hasPermission("com.darkyen.minecraft.deadsouls.souls.free.all"))) {
+                && (player.hasPermission("deadsouls.souls.free")
+                    || player.hasPermission("deadsouls.soulsFi.free.all"))) {
             final TextComponent star = new TextComponent("✦");
             star.setColor(ChatColor.YELLOW);
             final TextComponent freeMySoul = new TextComponent(" "+textFreeMySoul+" ");
             freeMySoul.setColor(ChatColor.GOLD);
-            freeMySoul.setBold(true);
-            freeMySoul.setUnderlined(true);
             if (textFreeMySoulTooltip != null && !textFreeMySoulTooltip.isEmpty()) {
                 SpigotCompat.textComponentSetHoverText(freeMySoul, textFreeMySoulTooltip);
             }
