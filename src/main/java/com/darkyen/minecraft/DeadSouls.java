@@ -791,178 +791,178 @@ public final class DeadSouls extends JavaPlugin implements Listener, DeadSoulsAP
         refreshEnabledWorlds();
     }
 
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
-    public void onPlayerDeath(PlayerDeathEvent event) {
-        final Player player = event.getEntity();
-
-        if (!player.hasPermission("deadsouls.hassoul")) {
-            return;
-        }
-
-        final World world = player.getWorld();
-        if (!enabledWorlds.contains(world.getUID())) {
-            return;
-        }
-
-        final boolean pvp = player.getKiller() != null && !player.equals(player.getKiller());
-        if (pvp && pvpBehavior == PvPBehavior.DISABLED) {
-            return;
-        }
-
-        final SoulDatabase soulDatabase = this.soulDatabase;
-        if (soulDatabase == null) {
-            getLogger().log(Level.WARNING, "onPlayerDeath: soulDatabase not loaded yet");
-            return;
-        }
-
-        // Actually clearing the drops is deferred to the end of the method:
-        // in case of any bug that causes this method to crash, we don't want to just delete the items
-        boolean clearItemDrops = false;
-        boolean clearXPDrops = false;
-
-        final ItemStack[] soulItems;
-        if (event.getKeepInventory() || !player.hasPermission("deadsouls.hassoul.items")) {
-            // We don't modify drops for this death at all
-            soulItems = NO_ITEM_STACKS;
-        } else {
-            final List<ItemStack> drops = event.getDrops();
-            soulItems = drops.toArray(NO_ITEM_STACKS);
-            clearItemDrops = true;
-        }
-
-        int soulXp;
-        if (event.getKeepLevel() || !player.hasPermission("deadsouls.hassoul.xp")
-                // Required because getKeepLevel is not set when world's KEEP_INVENTORY is set, but it has the same effect
-                // See https://hub.spigotmc.org/jira/browse/SPIGOT-2222
-                || Boolean.TRUE.equals(world.getGameRuleValue(GameRule.KEEP_INVENTORY))) {
-            // We don't modify XP for this death at all
-            soulXp = 0;
-        } else {
-            final int totalExperience = getTotalExperience(player);
-            if (retainedXPPercent >= 0) {
-                soulXp = Math.round(totalExperience * retainedXPPercent);
-            } else {
-                soulXp = retainedXPPerLevel * player.getLevel();
-            }
-            soulXp = Util.clamp(soulXp, 0, totalExperience);
-            clearXPDrops = true;
-        }
-
-        if (soulXp == 0 && soulItems.length == 0) {
-            // Soul would be empty
-            return;
-        }
-
-        Location soulLocation = null;
-        try {
-            if (smartSoulPlacement) {
-                PlayerSoulInfo info = watchedPlayers.get(player);
-                if (info == null) {
-                    getLogger().log(Level.WARNING, "Player " + player + " was not watched!");
-                    info = new PlayerSoulInfo();
-                    watchedPlayers.put(player, info);
-                }
-                soulLocation = info.findSafeSoulSpawnLocation(player);
-                info.lastSafeLocation.setWorld(null); // Reset it, so it isn't used twice
-            } else {
-                soulLocation = PlayerSoulInfo.findFallbackSoulSpawnLocation(player, player.getLocation(), false);
-            }
-        } catch (Exception bugException) {
-            // Should never happen, but just in case!
-            getLogger().log(Level.SEVERE, "Failed to find soul location, defaulting to player location!", bugException);
-        }
-        if (soulLocation == null) {
-            soulLocation = player.getLocation();
-        }
-
-        final UUID owner;
-        if ((pvp && pvpBehavior == PvPBehavior.FREE) || soulFreeAfterMs <= 0) {
-            owner = null;
-        } else {
-            owner = player.getUniqueId();
-        }
-
-        final int soulId = soulDatabase.addSoul(owner, world.getUID(),
-                soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp).id;
-        refreshNearbySoulCache = true;
-        
-
-        // Show coordinates if the player has poor taste
-        if (player.hasPermission("deadsouls.coordinates")) {
-            final TextComponent skull = new TextComponent("☠");
-            skull.setColor(ChatColor.BLACK);
-            final TextComponent coords = new TextComponent(String.format(" %d / %d / %d ", Math.round(soulLocation.getX()), Math.round(soulLocation.getY()), Math.round(soulLocation.getZ())));
-            coords.setColor(ChatColor.GRAY);
-            player.spigot().sendMessage(skull, coords, skull);
-        }
-
-        // Do not offer to free the soul if it will be free sooner than the player can click the button
-        if (owner != null && soulFreeAfterMs > 1000
-                && soulFreeingEnabled && textFreeMySoul != null && !textFreeMySoul.isEmpty()
-                && (player.hasPermission("deadsouls.souls.free")
-                    || player.hasPermission("deadsouls.soulsFi.free.all"))) {
-            final TextComponent star = new TextComponent("✦");
-            star.setColor(ChatColor.YELLOW);
-            final TextComponent freeMySoul = new TextComponent(" "+textFreeMySoul+" ");
-            freeMySoul.setColor(ChatColor.GOLD);
-            if (textFreeMySoulTooltip != null && !textFreeMySoulTooltip.isEmpty()) {
-                SpigotCompat.textComponentSetHoverText(freeMySoul, textFreeMySoulTooltip);
-            }
-            freeMySoul.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/souls free " + soulId));
-            player.spigot().sendMessage(ChatMessageType.CHAT, star, freeMySoul, star);
-        }
-
-        if (!soundSoulDropped.isEmpty()) {
-            world.playSound(soulLocation, soundSoulDropped, SoundCategory.MASTER, 1.1f, 1.7f);
-        }
-
-        // No need to set setKeepInventory/Level to false, because if we got here, it already is false
-        if (clearItemDrops) {
-            event.getDrops().clear();
-        }
-        if (clearXPDrops) {
-            event.setNewExp(0);
-            event.setNewLevel(0);
-            event.setNewTotalExp(0);
-            event.setDroppedExp(0);
-        }
-    }
-
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
-    public void onEntityDeath(EntityDeathEvent event) {
-        final LivingEntity entity = event.getEntity();
-
-        if (entity instanceof Player || !animalsWithSouls.contains(entity.getType())) {
-            return;
-        }
-
-        final ItemStack[] soulItems = event.getDrops().toArray(NO_ITEM_STACKS);
-        final int soulXp = event.getDroppedExp();
-
-        if (soulXp == 0 && soulItems.length == 0) {
-            // Soul would be empty
-            return;
-        }
-
-        final SoulDatabase soulDatabase = this.soulDatabase;
-        if (soulDatabase == null) {
-            getLogger().log(Level.WARNING, "onEntityDeath: soulDatabase not loaded yet");
-            return;
-        }
-
-        final Location soulLocation = entity.getLocation();
-
-        final World world = entity.getWorld();
-        soulDatabase.addSoul(null, world.getUID(), soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp);
-        refreshNearbySoulCache = true;
-
-        if (!soundSoulDropped.isEmpty()) {
-            world.playSound(soulLocation, soundSoulDropped, SoundCategory.MASTER, 1.1f, 1.7f);
-        }
-
-        event.getDrops().clear();
-        event.setDroppedExp(0);
-    }
+//    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+//    public void onPlayerDeath(PlayerDeathEvent event) {
+//        final Player player = event.getEntity();
+//
+//        if (!player.hasPermission("deadsouls.hassoul")) {
+//            return;
+//        }
+//
+//        final World world = player.getWorld();
+//        if (!enabledWorlds.contains(world.getUID())) {
+//            return;
+//        }
+//
+//        final boolean pvp = player.getKiller() != null && !player.equals(player.getKiller());
+//        if (pvp && pvpBehavior == PvPBehavior.DISABLED) {
+//            return;
+//        }
+//
+//        final SoulDatabase soulDatabase = this.soulDatabase;
+//        if (soulDatabase == null) {
+//            getLogger().log(Level.WARNING, "onPlayerDeath: soulDatabase not loaded yet");
+//            return;
+//        }
+//
+//        // Actually clearing the drops is deferred to the end of the method:
+//        // in case of any bug that causes this method to crash, we don't want to just delete the items
+//        boolean clearItemDrops = false;
+//        boolean clearXPDrops = false;
+//
+//        final ItemStack[] soulItems;
+//        if (event.getKeepInventory() || !player.hasPermission("deadsouls.hassoul.items")) {
+//            // We don't modify drops for this death at all
+//            soulItems = NO_ITEM_STACKS;
+//        } else {
+//            final List<ItemStack> drops = event.getDrops();
+//            soulItems = drops.toArray(NO_ITEM_STACKS);
+//            clearItemDrops = true;
+//        }
+//
+//        int soulXp;
+//        if (event.getKeepLevel() || !player.hasPermission("deadsouls.hassoul.xp")
+//                // Required because getKeepLevel is not set when world's KEEP_INVENTORY is set, but it has the same effect
+//                // See https://hub.spigotmc.org/jira/browse/SPIGOT-2222
+//                || Boolean.TRUE.equals(world.getGameRuleValue(GameRule.KEEP_INVENTORY))) {
+//            // We don't modify XP for this death at all
+//            soulXp = 0;
+//        } else {
+//            final int totalExperience = getTotalExperience(player);
+//            if (retainedXPPercent >= 0) {
+//                soulXp = Math.round(totalExperience * retainedXPPercent);
+//            } else {
+//                soulXp = retainedXPPerLevel * player.getLevel();
+//            }
+//            soulXp = Util.clamp(soulXp, 0, totalExperience);
+//            clearXPDrops = true;
+//        }
+//
+//        if (soulXp == 0 && soulItems.length == 0) {
+//            // Soul would be empty
+//            return;
+//        }
+//
+//        Location soulLocation = null;
+//        try {
+//            if (smartSoulPlacement) {
+//                PlayerSoulInfo info = watchedPlayers.get(player);
+//                if (info == null) {
+//                    getLogger().log(Level.WARNING, "Player " + player + " was not watched!");
+//                    info = new PlayerSoulInfo();
+//                    watchedPlayers.put(player, info);
+//                }
+//                soulLocation = info.findSafeSoulSpawnLocation(player);
+//                info.lastSafeLocation.setWorld(null); // Reset it, so it isn't used twice
+//            } else {
+//                soulLocation = PlayerSoulInfo.findFallbackSoulSpawnLocation(player, player.getLocation(), false);
+//            }
+//        } catch (Exception bugException) {
+//            // Should never happen, but just in case!
+//            getLogger().log(Level.SEVERE, "Failed to find soul location, defaulting to player location!", bugException);
+//        }
+//        if (soulLocation == null) {
+//            soulLocation = player.getLocation();
+//        }
+//
+//        final UUID owner;
+//        if ((pvp && pvpBehavior == PvPBehavior.FREE) || soulFreeAfterMs <= 0) {
+//            owner = null;
+//        } else {
+//            owner = player.getUniqueId();
+//        }
+//
+//        final int soulId = soulDatabase.addSoul(owner, world.getUID(),
+//                soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp).id;
+//        refreshNearbySoulCache = true;
+//
+//
+//        // Show coordinates if the player has poor taste
+//        if (player.hasPermission("deadsouls.coordinates")) {
+//            final TextComponent skull = new TextComponent("☠");
+//            skull.setColor(ChatColor.BLACK);
+//            final TextComponent coords = new TextComponent(String.format(" %d / %d / %d ", Math.round(soulLocation.getX()), Math.round(soulLocation.getY()), Math.round(soulLocation.getZ())));
+//            coords.setColor(ChatColor.GRAY);
+//            player.spigot().sendMessage(skull, coords, skull);
+//        }
+//
+//        // Do not offer to free the soul if it will be free sooner than the player can click the button
+//        if (owner != null && soulFreeAfterMs > 1000
+//                && soulFreeingEnabled && textFreeMySoul != null && !textFreeMySoul.isEmpty()
+//                && (player.hasPermission("deadsouls.souls.free")
+//                    || player.hasPermission("deadsouls.soulsFi.free.all"))) {
+//            final TextComponent star = new TextComponent("✦");
+//            star.setColor(ChatColor.YELLOW);
+//            final TextComponent freeMySoul = new TextComponent(" "+textFreeMySoul+" ");
+//            freeMySoul.setColor(ChatColor.GOLD);
+//            if (textFreeMySoulTooltip != null && !textFreeMySoulTooltip.isEmpty()) {
+//                SpigotCompat.textComponentSetHoverText(freeMySoul, textFreeMySoulTooltip);
+//            }
+//            freeMySoul.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/souls free " + soulId));
+//            player.spigot().sendMessage(ChatMessageType.CHAT, star, freeMySoul, star);
+//        }
+//
+//        if (!soundSoulDropped.isEmpty()) {
+//            world.playSound(soulLocation, soundSoulDropped, SoundCategory.MASTER, 1.1f, 1.7f);
+//        }
+//
+//        // No need to set setKeepInventory/Level to false, because if we got here, it already is false
+//        if (clearItemDrops) {
+//            event.getDrops().clear();
+//        }
+//        if (clearXPDrops) {
+//            event.setNewExp(0);
+//            event.setNewLevel(0);
+//            event.setNewTotalExp(0);
+//            event.setDroppedExp(0);
+//        }
+//    }
+//
+//    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+//    public void onEntityDeath(EntityDeathEvent event) {
+//        final LivingEntity entity = event.getEntity();
+//
+//        if (entity instanceof Player || !animalsWithSouls.contains(entity.getType())) {
+//            return;
+//        }
+//
+//        final ItemStack[] soulItems = event.getDrops().toArray(NO_ITEM_STACKS);
+//        final int soulXp = event.getDroppedExp();
+//
+//        if (soulXp == 0 && soulItems.length == 0) {
+//            // Soul would be empty
+//            return;
+//        }
+//
+//        final SoulDatabase soulDatabase = this.soulDatabase;
+//        if (soulDatabase == null) {
+//            getLogger().log(Level.WARNING, "onEntityDeath: soulDatabase not loaded yet");
+//            return;
+//        }
+//
+//        final Location soulLocation = entity.getLocation();
+//
+//        final World world = entity.getWorld();
+//        soulDatabase.addSoul(null, world.getUID(), soulLocation.getX(), soulLocation.getY(), soulLocation.getZ(), soulItems, soulXp);
+//        refreshNearbySoulCache = true;
+//
+//        if (!soundSoulDropped.isEmpty()) {
+//            world.playSound(soulLocation, soundSoulDropped, SoundCategory.MASTER, 1.1f, 1.7f);
+//        }
+//
+//        event.getDrops().clear();
+//        event.setDroppedExp(0);
+//    }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerJoin(PlayerJoinEvent event) {
